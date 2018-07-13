@@ -30,7 +30,6 @@ $IPT -P FORWARD DROP
 
 
 # Regra de Forward
-#$IPT -A FORWARD -s 192.168.1.10/32 -j ACCEPT
 $IPT -A INPUT -s 177.69.78.164/32 -j ACCEPT
 #$IPT -A INPUT -i enp0s3 -s 192.168.1.10/32 -j ACCEPT
 # ----------------------------------------------------------------------------
@@ -69,16 +68,18 @@ $IPT -A INPUT -p udp --dport 53 -j ACCEPT
 $IPT -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
 
 
+# ----------------------------------------------------------------------------
 # Permitir Postrouting VPN
 $IPT -t nat -A POSTROUTING -s 10.8.0.0/24 ! -d 10.8.0.0/24 -j SNAT --to 107.172.248.104
 
 
+# ----------------------------------------------------------------------------
 # Registrar tráfego de entrada de conexões recebidas, mas negadas
-$IPT -A INPUT -m limit --limit 5/min -j LOG --log-prefix "IPT_INPUT_DENIED: " --log-level 4
+$IPT -A INPUT -m limit --limit 5/min -j LOG --log-prefix "iptables_INPUT_DENIED: " --log-level 7
 
 
 # Registrar tráfego de encaminhamento de conexões recebidas, mas negadas
-$IPT -A FORWARD -m limit --limit 5/min -j LOG --log-prefix "IPTABLES_FORWARD_DENIED: " --log-level 4
+$IPT -A FORWARD -m limit --limit 5/min -j LOG --log-prefix "iptables_FORWARD_DENIED: " --log-level 7
 
 echo "Firewall Done"
 exit 0
