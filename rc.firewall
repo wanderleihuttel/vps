@@ -1,11 +1,14 @@
 #!/bin/bash
 
-# Iptables
+# Iptables executable
 IPT="/usr/sbin/iptables"
 
+# Loopback interface
 LOOPBACK_INTERFACE="lo"
+VPN_INTERFACE="tun0"
+IP_ADDRESS="107.172.248.104"
 
-# Carrega os Módulos do kernel
+# Load Kernel Modules
 /sbin/modprobe iptable_filter
 /sbin/modprobe ip_nat
 /sbin/modprobe nf_nat
@@ -16,93 +19,90 @@ LOOPBACK_INTERFACE="lo"
 /sbin/modprobe ipt_LOG
 /sbin/modprobe ipt_MASQUERADE
 
-# Zera /sbin/ipchains
+# Flush all chains
 $IPT -F
 $IPT -X
 $IPT -t nat -F
-$IPT -t mangle -F INPUT
-$IPT -t mangle -F FORWARD
+$IPT -t mangle -F
 
-# Aplica politica padrao ao firewall
+# Apply default policies
 $IPT -P INPUT DROP
 $IPT -P OUTPUT ACCEPT
 $IPT -P FORWARD DROP
 
 
-# Regra de Forward
+# Allow all connections from some ip address
 $IPT -A INPUT -s 177.69.78.164/32 -j ACCEPT
-#$IPT -A INPUT -i enp0s3 -s 192.168.1.10/32 -j ACCEPT
 # ----------------------------------------------------------------------------
 
-# Ativar encaminhamento de pacotes (ip_forward)
+# Enable packet forwarding (ip_forward)
 echo 1 > /proc/sys/net/ipv4/ip_forward
 
-# Permitir todo o tráfego de loopback (lo) e rejeitar o tráfego
-# para localhost que não é originário de lo.
+
+# Allow all loopback traffic (lo) and reject traffic
+# to localhost that does not originate from (lo).
 $IPT -A INPUT   -i ${LOOPBACK_INTERFACE} -j ACCEPT
 $IPT -A FORWARD -i ${LOOPBACK_INTERFACE} -j ACCEPT
 $IPT -A OUTPUT  -o ${LOOPBACK_INTERFACE} -j ACCEPT
 $IPT -A INPUT ! -i ${LOOPBACK_INTERFACE} -s 127.0.0.0/8 -j REJECT
 
 
-# Permitir ping
+# Allow ping
 $IPT -A INPUT -p icmp -m state --state NEW --icmp-type 8 -j ACCEPT
 
 
-# Permitir conexões SSH
+# Allow SSH traffic
 $IPT -A INPUT -p tcp --dport 22 -j ACCEPT
 $IPT -A INPUT -p tcp --dport 22 -m state --state NEW -j ACCEPT
 
 
-# Permitir conex�es VPN
+# Allow VPN traffic
 $IPT -A INPUT -p udp --dport 1194 -j ACCEPT
 $IPT -A INPUT -p udp --dport 1194 -m state --state NEW -j ACCEPT
 
 
-# Permitir conexões HTTP e HTTPS de qualquer lugar
+# Allow HTTP and HTTPS traffic
 $IPT -A INPUT -p tcp --dport 80 -j ACCEPT
 $IPT -A INPUT -p tcp --dport 80 -m state --state NEW -j ACCEPT
-$IPT -A INPUT -p tcp --dport 443 -j ACCEPT
-$IPT -A INPUT -p tcp --dport 443 -m state --state NEW -j ACCEPT
+$IPT -A INPUT -p tcp -i ${VPN_INTERFACE} --dport 443 -j ACCEPT
+$IPT -A INPUT -p tcp -i ${VPN_INTERFACE} --dport 443 -m state --state NEW -j ACCEPT
 
 
-# Permitir conex�es aos daemons do Bacula
-$IPT -A INPUT -p tcp --dport 9101:9103 -j ACCEPT
-$IPT -A INPUT -p tcp --dport 9101:9103 -m state --state NEW -j ACCEPT
+# Allow traffic to Bacula daemons
+$IPT -A INPUT -p tcp -i ${VPN_INTERFACE} --dport 9101:9103 -j ACCEPT
+$IPT -A INPUT -p tcp -i ${VPN_INTERFACE} --dport 9101:9103 -m state --state NEW -j ACCEPT
 
 
-# Permitir conexões ao Bwe (Interface Web de gerencimento do Bacula)
-$IPT -A INPUT -p tcp --dport 9180 -j ACCEPT
-$IPT -A INPUT -p tcp --dport 9180 -m state --state NEW -j ACCEPT
+# Allow traffic to the Bweb (Bacula Web Interface)
+$IPT -A INPUT -p tcp -i ${VPN_INTERFACE} --dport 9180 -j ACCEPT
+$IPT -A INPUT -p tcp -i ${VPN_INTERFACE} --dport 9180 -m state --state NEW -j ACCEPT
 
 
-# Permitir conexõesáREST-API do Bacula
-$IPT -A INPUT -p tcp --dport 4443 -j ACCEPT
-$IPT -A INPUT -p tcp --dport 4443 -m state --state NEW -j ACCEPT
+# Allow traffic to Bacula REST-API
+$IPT -A INPUT -p tcp -i ${VPN_INTERFACE} --dport 4443 -j ACCEPT
+$IPT -A INPUT -p tcp -i ${VPN_INTERFACE} --dport 4443 -m state --state NEW -j ACCEPT
 
-
-# Permitir consultas DNS
+# Allow DNS queries
 $IPT -A INPUT -p tcp --dport 53 -j ACCEPT
 $IPT -A INPUT -p udp --dport 53 -j ACCEPT
 
 
-# Permitir tráfego de entrada de conexões estabelecidas
+# Allow incoming traffic from established connections
 $IPT -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
 
 
 # ----------------------------------------------------------------------------
-# Permitir Postrouting VPN
-$IPT -t nat -A POSTROUTING -s 10.8.0.0/24 ! -d 10.8.0.0/24 -j SNAT --to 107.172.248.104
+# Allow Postrouting VPN
+$IPT -t nat -A POSTROUTING -s 10.8.0.0/24 ! -d 10.8.0.0/24 -j SNAT --to ${IP_ADDRESS}
 
 
 # ----------------------------------------------------------------------------
-# Registrar tráfego de entrada de conexões recebidas, mas negadas
-$IPT -A INPUT -m limit --limit 5/min -j LOG --log-prefix "iptables_INPUT_DENIED: " --log-level 7
+# Log traffic from incoming packets but not accepted (denied)
+$IPT -A INPUT -m limit --limit 5/min -j LOG --log-prefix "IPT_INPUT_DENIED: " --log-level 7
 
 
-# Registrar tráfego de encaminhamento de conexões recebidas, mas negadas
-$IPT -A FORWARD -m limit --limit 5/min -j LOG --log-prefix "iptables_FORWARD_DENIED: " --log-level 7
+# Log traffic from forwarding packets but not accepted (denied)
+$IPT -A FORWARD -m limit --limit 5/min -j LOG --log-prefix "IPT_FORWARD_DENIED: " --log-level 7
 
 echo "Firewall Done"
 exit 0
-
