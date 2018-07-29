@@ -357,6 +357,7 @@ persist-tun
 remote-cert-tls server
 auth SHA512
 cipher AES-256-CBC
+auth-nocache
 comp-lzo
 key-direction 1
 verb 3" > /etc/openvpn/client-common.txt
