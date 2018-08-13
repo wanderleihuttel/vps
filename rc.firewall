@@ -1,7 +1,8 @@
 #!/bin/bash
 
 # Iptables executable
-IPT="/usr/sbin/iptables"
+IPT=$(which /usr/sbin/iptables)
+MODPROBE=$(which modprobe)
 
 # Loopback interface
 LOOPBACK_INTERFACE="lo"
@@ -9,15 +10,15 @@ VPN_INTERFACE="tun0"
 IP_ADDRESS="107.172.248.104"
 
 # Load Kernel Modules
-/sbin/modprobe iptable_filter
-/sbin/modprobe ip_nat
-/sbin/modprobe nf_nat
-/sbin/modprobe ip_nat_ftp
-/sbin/modprobe ip_conntrack_ftp
-/sbin/modprobe nf_log_ipv4
-/sbin/modprobe mangle
-/sbin/modprobe ipt_LOG
-/sbin/modprobe ipt_MASQUERADE
+$MODPROBE iptable_filter
+$MODPROBE ip_nat
+$MODPROBE nf_nat
+$MODPROBE ip_nat_ftp
+$MODPROBE ip_conntrack_ftp
+$MODPROBE nf_log_ipv4
+$MODPROBE mangle
+$MODPROBE ipt_LOG
+$MODPROBE ipt_MASQUERADE
 
 # Flush all chains
 $IPT -F
@@ -49,6 +50,7 @@ $IPT -A INPUT ! -i ${LOOPBACK_INTERFACE} -s 127.0.0.0/8 -j REJECT
 
 # Allow ping
 $IPT -A INPUT -p icmp --icmp-type 8 -j ACCEPT
+$IPT -A INPUT -p icmp -m state --state NEW --icmp-type 8 -j ACCEPT
 
 
 # Allow SSH traffic
@@ -57,6 +59,7 @@ $IPT -A INPUT -p tcp --dport 22 -j ACCEPT
 
 # Allow VPN traffic
 $IPT -A INPUT -p udp --dport 1194 -j ACCEPT
+$IPT -A INPUT -p udp --dport 1194 -m state --state NEW -j ACCEPT
 
 
 # Allow HTTP and HTTPS traffic
@@ -80,12 +83,19 @@ $IPT -A INPUT -p tcp --dport 53 -j ACCEPT
 $IPT -A INPUT -p udp --dport 53 -j ACCEPT
 
 
+# Allow forward  traffic from established connections
+$IPT -I FORWARD -s 10.8.0.0/24 -j ACCEPT
+$IPT -I FORWARD -m state --state RELATED,ESTABLISHED -j ACCEPT
+
+
 # ----------------------------------------------------------------------------
 # Allow Postrouting VPN
 $IPT -t nat -A POSTROUTING -s 10.8.0.0/24 ! -d 10.8.0.0/24 -j SNAT --to ${IP_ADDRESS}
 
 # Allow incoming traffic from established connections
+$IPT -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
 $IPT -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+
 
 
 # ----------------------------------------------------------------------------
