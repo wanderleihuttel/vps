@@ -4,7 +4,7 @@
 # Based on article: http://www.bacula.pl/artykul/57/szyfrowanie-transmisji-danych-w-bacula/
 
 
-ssl_dir="/etc/bacula/ssl"
+ssl_dir="/opt/bacula/ssl"
 template_dir="/opt/bacula"
 keys_dir="${ssl_dir}/keys"
 certs_dir="${ssl_dir}/certs"
