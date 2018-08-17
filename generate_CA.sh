@@ -3,15 +3,14 @@
 #
 # Author:  Wanderlei Huttel
 # Email:   wanderlei.huttel@gmail.com
-  version="1.1.0 - 16 Aug 2018"
+  version="1.0.2 - 17 Aug 2018"
 #
 # Based on article: http://www.bacula.pl/artykul/57/szyfrowanie-transmisji-danych-w-bacula/
 # Requisites zip to create packages
 
 
-
 #----------------------------------
-# Variables that can be changed
+# Variables configurable
 #----------------------------------
 ssl_dir="/opt/bacula/etc/ssl"
 template_dir="/opt/bacula/etc"
@@ -178,16 +177,16 @@ function revoke_certificate()
            echo
            return 0
         elif [ "${numberofcertificates}" == "1" ]; then
-            read -p " Select one certificate [1]: " certificatenumber
+            read -p " Select one certificate [1]: " option
         else
-            read -p " Select one certificate [1-${i}]: " certificatenumber
+            read -p " Select one certificate [1-${i}]: " option
         fi
 
-        if [ "${certificatenumber}" == "${i}" ] || [ $"{certificatenumber}" == ""]; then
+        if [ "${option}" == "${i}" ] || [ "${option}" == ""]; then
             return 0
         fi
 
-        certificatename=$(cat ${certificates_txt} | cut -d "|" -f2 | sed -n "${certificatenumber}"p)
+        certificatename=$(cat ${certificates_txt} | cut -d "|" -f2 | sed -n "${option}"p)
         certificateserial=$(cat ${certificates_txt} | grep ${certificatename} | cut -d"|" -f1)
 
         cert="${certs_dir}/${certificatename}_cert.pem"
@@ -424,8 +423,29 @@ function menu()
 
 
 #===============================================================================
-# Check if ssl_dir exists, and if not, create folder structure
+# Detect Debian users running the script with "sh" instead of bash
 clear
+if readlink /proc/$$/exe | grep -q "dash"; then
+    echo "This script needs to be run with bash, not sh"
+    exit
+fi
+
+if [[ "$EUID" -ne 0 ]]; then
+    echo "Sorry, you need to run this as root"
+    exit
+fi
+
+if [[ -e /etc/debian_version ]]; then
+    OS=debian
+elif [[ -e /etc/centos-release || -e /etc/redhat-release ]]; then
+    OS=centos
+else
+    echo "Looks like you aren't running this installer on Debian, Ubuntu or CentOS"
+    exit
+fi
+
+
+# Check if ssl_dir exists, and if not, create folder structure
 if [ ! -d ${ssl_dir} ]; then
     echo " =================================================="
     echo " Bacula selfsign certificates generator"
@@ -445,6 +465,17 @@ if [ ! -d ${ssl_dir} ]; then
     mkdir -p ${keys_dir}
     mkdir -p ${certs_dir}
     mkdir -p ${packs_dir}
+    if [ "$(which wget)" == "" ] || [ "$(which zip)" == "" ]; then
+        if [ "$OS" == "debian" ]; then
+            apt-get install zip wget
+        elif [ "$OS" == "centos" ]; then
+            yum install -y zip wget
+        fi
+    fi
+
+    if [ ! -f "${template_dir}/openssl.cnf.template" ]; then
+        wget -c https://raw.githubusercontent.com/wanderleihuttel/bacula-utils/master/conf/openssl.cnf.template -O "${template_dir}/openssl.cnf.template"
+    fi
     init_config
 fi
 menu
