@@ -97,11 +97,11 @@ subjectKeyIdentifier=hash
 authorityKeyIdentifier=keyid:always,issuer
 
 # With OpenSSL 1.1, enforce basicConstraints = CA:true in the certificate creation to avoid this issue
-basicConstraints = CA:false
+basicConstraints = CA:true
 
 [ usr_cert ]
 
-basicConstraints=CA:false
+basicConstraints=CA:true
 nsComment			= "OpenSSL Generated Certificate"
 
 # PKIX recommendations harmless if included in all certificates.
