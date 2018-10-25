@@ -3,16 +3,20 @@
 #
 # Author:  Wanderlei Huttel
 # Email:   wanderlei@bacula.com.br
-version="1.0.2 - 26 Aug 2018"
+version="1.0.4 - 25 Oct 2018"
 
-# This script will only work with the latest Debian and CentOS versions
-debian_version="9.0.8"
-centos_version="9.2.0"
 
-# Fill with your bacula_key
-# This key is obtained with a registration in Bacula.org.
-# http://blog.bacula.org/download-community-binaries/
-bacula_key="XXXXXXXXXXXXX"
+#===============================================================================
+# Read bacula key
+function read_bacula_key()
+{
+    clear
+    echo " --------------------------------------------------"
+    echo " Inform your Bacula Key"
+    echo " This key is obtained with a registration in Bacula.org."
+    echo " http://blog.bacula.org/bacula-binary-package-download/"
+    read -p " Please, fill with your Bacula Key: " bacula_key
+}
 
 
 #===============================================================================
@@ -36,20 +40,43 @@ function download_bacula_key()
 # Download Bacula Key
 function create_bacula_repository()
 {
+    while :
+    do
+    clear
+    echo " --------------------------------------------------"
+    echo " Inform the Bacula version"
+    url="http://www.bacula.org/packages/${bacula_key}/debs/"
+    IFS=$'\n'
+    versions=$(curl --silent --fail -r 0-0 "${url}" | grep -o '<a.*>.*/</a>' | sed 's/\(<a.*">\|\/<\/a>\)//g')
+    for i in ${versions}; do
+        echo "   - $i";
+    done
+    read -p " Type your the Bacula Version: " bacula_version
     if [ "$OS" == "debian" ]; then
+        url="http://www.bacula.org/packages/${bacula_key}/debs/${bacula_version}/stretch/amd64"
         echo "# Bacula Community
-deb http://www.bacula.org/packages/${bacula_key}/debs/${debian_version}/stretch/amd64 stretch main" > /etc/apt/sources.list.d/bacula-community.list
+deb ${url} stretch main" > /etc/apt/sources.list.d/bacula-community.list
     elif [ "$OS" == "centos" ]; then
+        url="http://www.bacula.org/packages/${bacula_key}/rpms/${bacula_version}/el7/x86_64/"
         echo "[Bacula-Community]
 name=CentOS - Bacula - Community
-baseurl=http://www.bacula.org/packages/${bacula_key}/rpms/${centos_version}/el7/x86_64/
+baseurl=${url}
 enabled=1
 protect=0
 gpgcheck=0" > /etc/yum.repos.d/bacula-community.repo
     else
         echo "Is not possible to install the Bacula Key"
     fi
-    rm -f /tmp/Bacula-4096-Distribution-Verification-key.asc
+
+    if wget --spider ${url} 2>/dev/null; then
+        break
+    else
+        echo " Unfortunately this version (${bacula_version}) still not available for this OS."
+        echo " Please, choose another one!"
+        read -p " Press [enter] key to continue..." readenterkey
+    fi
+
+    done
 }
 
 
@@ -182,6 +209,7 @@ function menu()
 #===============================================================================
 # Detect Debian users running the script with "sh" instead of bash
 OS=""
+bacula_key=""
 export DEBIAN_FRONTEND=noninteractive
 clear
 if readlink /proc/$$/exe | grep -q "dash"; then
@@ -204,11 +232,12 @@ else
 fi
 
 if [ "$OS" == "debian" ]; then
-    apt-get install -y zip wget bzip2
+    apt-get install -y zip wget bzip2 curl
 elif [ "$OS" == "centos" ]; then
-    yum install -y zip wget apt-transport-https bzip2
+    yum install -y zip wget apt-transport-https bzip2 curl
 fi
 
 download_bacula_key
+read_bacula_key
 create_bacula_repository
 menu
