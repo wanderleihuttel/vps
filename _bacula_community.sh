@@ -225,6 +225,11 @@ fi
 if [[ -e /etc/debian_version ]]; then
     OS=debian
 elif [[ -e /etc/centos-release || -e /etc/redhat-release ]]; then
+    setenforce 0
+    sudo sed -i "s/enforcing/disabled/g" /etc/selinux/config
+    sudo sed -i "s/enforcing/disabled/g" /etc/sysconfig/selinux
+    firewall-cmd --permanent --zone=public --add-port=9101-9103/tcp
+    systemctl restart firewalld
     OS=centos
 else
     echo "Looks like you aren't running this installer on Debian, Ubuntu or CentOS"
